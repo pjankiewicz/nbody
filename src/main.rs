@@ -99,8 +99,6 @@ fn move_camera(mut camera: Query<&mut Transform, With<Camera>>, stats: Res<Stats
 fn gravity(
     mut commands: Commands,
     settings: Res<Settings>,
-    asset_server: Res<AssetServer>,
-    audio: Res<Audio>,
     mut planet_query: Query<(Entity, &mut Planet, &mut Velocity, &mut Transform)>,
     mut stats: ResMut<Stats>,
     time: Res<Time>,
@@ -109,7 +107,6 @@ fn gravity(
     let mut despawned = HashSet::new();
     stats.n_objects = 0;
     let mut largest = 0.0;
-    let mut largest_position = Vec2::new(0.0, 0.0);
     stats.frame_number += 1;
 
     for (entity_1, mut planet_1, velocity_1, transform_1) in planet_query.iter() {
@@ -225,20 +222,19 @@ fn despawn_traces(
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut stats: ResMut<Stats>) {
+fn setup(mut commands: Commands, mut ev_reset: EventWriter<Reset>) {
     commands
         .spawn_bundle(OrthographicCameraBundle::new_2d())
         .insert(PanCam::default())
         .insert(FlyCamera2d::default());
+    ev_reset.send(Reset);
 }
 
 fn setup_many_orbits(
     mut planet_query: Query<(Entity, &mut Planet)>,
     mut ev_reset: EventReader<Reset>,
     settings: Res<Settings>,
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut stats: ResMut<Stats>,
+    mut commands: Commands
 ) {
     let mut manual_reset = false;
     for _ in ev_reset.iter() {
@@ -306,10 +302,7 @@ fn spawn_planet(commands: &mut Commands, planet: Planet, velocity: Velocity, tra
         },
         transform,
     ));
-
     entity_commands.insert(planet).insert(velocity);
-
-    let entity_id = entity_commands.id();
 }
 
 fn spawn_trace(commands: &mut Commands, transform: Transform, live_until: f64) {
@@ -382,7 +375,6 @@ pub fn game() {
         .add_plugin(FlyCameraPlugin)
         .add_plugin(PanCamPlugin::default())
         .add_startup_system(setup)
-        // .add_startup_system(setup_many_orbits)
         .add_system(gravity)
         .add_system(ui_box)
         .add_system(move_camera)
