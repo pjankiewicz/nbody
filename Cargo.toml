@@ -3,6 +3,10 @@ cargo-features = ["edition2021"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+path = "src/nbody.rs"
+name = "nbody"
+
 [package]
 edition = "2021"
 name = "nbody"

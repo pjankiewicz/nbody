@@ -1,13 +1,15 @@
+mod pancam;
+
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_fly_camera::{FlyCamera2d, FlyCameraPlugin};
-use bevy_pancam::{PanCam, PanCamPlugin};
 use bevy_prototype_lyon::prelude::*;
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use wasm_bindgen::prelude::*;
+use crate::pancam::{PanCam, PanCamPlugin};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -21,7 +23,6 @@ const SOFTENING: f32 = 1.0;
 
 #[derive(Default)]
 struct Stats {
-    time_step: f32,
     frame_number: usize,
     n_objects: usize,
     center_on_largest: bool,
@@ -109,9 +110,9 @@ fn gravity(
     let mut largest = 0.0;
     stats.frame_number += 1;
 
-    for (entity_1, mut planet_1, velocity_1, transform_1) in planet_query.iter() {
+    for (entity_1, planet_1, velocity_1, transform_1) in planet_query.iter() {
         if stats.frame_number % 5 == 0 && stats.draw_traces {
-            let mut transform: Transform = transform_1.clone();
+            let mut transform: Transform = *transform_1;
             transform.translation.z = 1.0;
             spawn_trace(
                 &mut commands,
@@ -125,7 +126,7 @@ fn gravity(
         }
         stats.n_objects += 1;
         let mut accel_cum = Vec2::new(0.0, 0.0);
-        for (entity_2, mut planet_2, velocity_2, transform_2) in planet_query.iter() {
+        for (entity_2, planet_2, velocity_2, transform_2) in planet_query.iter() {
             if entity_1.id() != entity_2.id()
                 && !despawned.contains(&entity_1.id())
                 && !despawned.contains(&entity_2.id())
@@ -145,21 +146,21 @@ fn gravity(
                     if planet_1.mass() > planet_2.mass() {
                         spawn_planet(
                             &mut commands,
-                            merge_planets(&planet_1, &planet_2),
+                            merge_planets(planet_1, &planet_2),
                             final_velocity,
                             *transform_1,
                         );
                     } else {
                         spawn_planet(
                             &mut commands,
-                            merge_planets(&planet_2, &planet_1),
+                            merge_planets(planet_2, &planet_1),
                             final_velocity,
                             *transform_2,
                         );
                     }
                 } else {
                     let r_mag = (r_vector + Vec2::new(SOFTENING, SOFTENING)).length();
-                    let accel: f32 = (-1.0 * BIG_G * planet_2.mass() / r_mag.powf(2.0));
+                    let accel: f32 = -1.0 * BIG_G * planet_2.mass() / r_mag.powf(2.0);
                     let r_vector_unit = r_vector / r_mag;
                     accel_cum += accel * r_vector_unit;
                 }
@@ -168,7 +169,7 @@ fn gravity(
         accel_map.insert(entity_1.id(), accel_cum);
     }
 
-    for (entity_1, planet_1, mut velocity_1, mut transform_1) in planet_query.iter_mut() {
+    for (entity_1, _, mut velocity_1, mut transform_1) in planet_query.iter_mut() {
         if !despawned.contains(&entity_1.id()) {
             velocity_1.velocity += *accel_map.get(&entity_1.id()).unwrap() * TIME_STEP;
             transform_1.translation.x += velocity_1.velocity.x * TIME_STEP;
@@ -193,22 +194,15 @@ fn merge_planets(planet_1: &Planet, planet_2: &Planet) -> Planet {
     Planet {
         radius: new_radius,
         density: planet_1.density * (area_1 / area_sum) + planet_2.density * (area_2 / area_sum),
-        color: planet_1.color.clone(),
+        color: planet_1.color,
         is_sun: planet_1.is_sun || planet_2.is_sun,
     }
-}
-
-fn merge_planets_radius(planet_1: &Planet, planet_2: &Planet) -> f32 {
-    let area_1 = planet_1.radius;
-    let area_2 = planet_1.radius;
-    let area_sum = area_1 + area_2;
-    area_to_radius(area_sum)
 }
 
 fn despawn_traces(
     mut ev_clear_trace: EventReader<ClearTraces>,
     mut commands: Commands,
-    mut traces: Query<(Entity, &Trace)>,
+    traces: Query<(Entity, &Trace)>,
     time: Res<Time>,
 ) {
     let mut manual_clear = false;
@@ -297,8 +291,8 @@ fn spawn_planet(commands: &mut Commands, planet: Planet, velocity: Velocity, tra
     let mut entity_commands = commands.spawn_bundle(GeometryBuilder::build_as(
         &shape,
         DrawMode::Outlined {
-            fill_mode: FillMode::color(planet.color.clone()),
-            outline_mode: StrokeMode::new(planet.color.clone(), 0.0),
+            fill_mode: FillMode::color(planet.color),
+            outline_mode: StrokeMode::new(planet.color, 0.0),
         },
         transform,
     ));
