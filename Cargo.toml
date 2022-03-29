@@ -1,0 +1,32 @@
+cargo-features = ["edition2021"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package]
+edition = "2021"
+name = "nbody"
+version = "0.1.0"
+
+[dependencies]
+rand = "*"
+bevy_prototype_lyon = "*"
+bevy_fly_camera = "*"
+bevy_pancam = "*"
+bevy_egui = "*"
+wasm-bindgen = "0.2.79"
+wee_alloc = { version = "0.4.5", optional = true }
+
+[dependencies.bevy]
+#features = ["dynamic"]
+version = "0.6.1"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.2"
+
+#[target.'cfg(any(target_arch="wasm32-unknown-unknown"))'.profile.release]
+#lto = true
+#opt-level = 3
+[profile.release]
+lto = true
+opt-level = 3

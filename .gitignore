@@ -1,0 +1,7 @@
+out/
+target/
+.idea
+
+Cargo.lock
+package-lock.json
+nbody.iml

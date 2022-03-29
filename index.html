@@ -1,0 +1,36 @@
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        margin: 0;
+        background: black; //linear-gradient(-45deg, #a6a6a6, #5ac05a, #262626, #a6a6a6);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      canvas {
+        background-color: white;
+      }
+
+      @keyframes gradient {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+    </style>
+</head>
+<script type="module">
+    import init from './out/nbody.js'
+    init()
+  </script>
+</html>
