@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_fly_camera::{FlyCamera2d, FlyCameraPlugin};
 use bevy_prototype_lyon::prelude::*;
+use derive_more::Deref;
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
@@ -64,10 +65,8 @@ impl Default for Settings {
 struct ClearTraces;
 struct Reset;
 
-#[derive(Component, Debug, Clone)]
-struct Velocity {
-    velocity: Vec2,
-}
+#[derive(Component, Debug, Clone, Deref)]
+struct Velocity(Vec2);
 
 #[derive(Component, Debug, Clone)]
 struct Planet {
@@ -135,10 +134,10 @@ fn gravity(
                     transform_1.translation.truncate() - transform_2.translation.truncate();
                 if r_vector.length() < planet_1.radius + planet_2.radius && settings.collisions {
                     let sum_mass = planet_1.mass() + planet_2.mass();
-                    let final_velocity = Velocity {
-                        velocity: velocity_1.velocity * planet_1.mass() / sum_mass
-                            + velocity_2.velocity * planet_2.mass() / sum_mass,
-                    };
+                    let final_velocity = Velocity(
+                        velocity_1.0 * planet_1.mass() / sum_mass
+                            + velocity_2.0 * planet_2.mass() / sum_mass,
+                    );
                     commands.entity(entity_2).despawn();
                     despawned.insert(entity_2.id());
                     commands.entity(entity_1).despawn();
@@ -171,9 +170,9 @@ fn gravity(
 
     for (entity_1, _, mut velocity_1, mut transform_1) in planet_query.iter_mut() {
         if !despawned.contains(&entity_1.id()) {
-            velocity_1.velocity += *accel_map.get(&entity_1.id()).unwrap() * TIME_STEP;
-            transform_1.translation.x += velocity_1.velocity.x * TIME_STEP;
-            transform_1.translation.y += velocity_1.velocity.y * TIME_STEP;
+            velocity_1.0 += *accel_map.get(&entity_1.id()).unwrap() * TIME_STEP;
+            transform_1.translation.x += velocity_1.x * TIME_STEP;
+            transform_1.translation.y += velocity_1.y * TIME_STEP;
         }
     }
 }
@@ -249,9 +248,7 @@ fn setup_many_orbits(
         spawn_planet(
             &mut commands,
             sun.clone(),
-            Velocity {
-                velocity: Vec2::new(0.0, 0.0),
-            },
+            Velocity(Vec2::new(0.0, 0.0)),
             Transform::from_xyz(0.0, 0.0, 10.0),
         );
 
@@ -280,9 +277,7 @@ fn setup_many_orbits(
             spawn_planet(
                 &mut commands,
                 planet,
-                Velocity {
-                    velocity: Vec2::new(vx, vy),
-                },
+                Velocity(Vec2::new(vx, vy)),
                 Transform::from_xyz(x, y, 10.0),
             );
         }
