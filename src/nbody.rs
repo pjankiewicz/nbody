@@ -1,5 +1,6 @@
 mod pancam;
 
+use crate::pancam::{PanCam, PanCamPlugin};
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
@@ -9,7 +10,6 @@ use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use wasm_bindgen::prelude::*;
-use crate::pancam::{PanCam, PanCamPlugin};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -41,7 +41,7 @@ struct Settings {
     min_planet_orbit_radius: f32,
     max_planet_orbit_radius: f32,
     sun_size: f32,
-    sun_density: f32
+    sun_density: f32,
 }
 
 impl Default for Settings {
@@ -56,7 +56,7 @@ impl Default for Settings {
             min_planet_orbit_radius: 100.0,
             max_planet_orbit_radius: 1000.0,
             sun_size: 30.0,
-            sun_density: 5.0
+            sun_density: 5.0,
         }
     }
 }
@@ -228,7 +228,7 @@ fn setup_many_orbits(
     mut planet_query: Query<(Entity, &mut Planet)>,
     mut ev_reset: EventReader<Reset>,
     settings: Res<Settings>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     let mut manual_reset = false;
     for _ in ev_reset.iter() {
@@ -256,15 +256,21 @@ fn setup_many_orbits(
         );
 
         for _ in 0..settings.n_objects {
-            let planet_radius = rng.gen::<f32>() * (settings.max_planet_size - settings.min_planet_size) + settings.min_planet_size;
-            let density: f32 = rng.gen::<f32>() * (settings.max_planet_density - settings.min_planet_density) + settings.min_planet_density;
+            let planet_radius = rng.gen::<f32>()
+                * (settings.max_planet_size - settings.min_planet_size)
+                + settings.min_planet_size;
+            let density: f32 = rng.gen::<f32>()
+                * (settings.max_planet_density - settings.min_planet_density)
+                + settings.min_planet_density;
             let planet = Planet {
                 radius: planet_radius,
                 density,
                 color: Color::WHITE,
                 is_sun: false,
             };
-            let orbit_radius: f32 = rng.gen::<f32>() * (settings.max_planet_orbit_radius - settings.min_planet_orbit_radius) + settings.min_planet_orbit_radius;
+            let orbit_radius: f32 = rng.gen::<f32>()
+                * (settings.max_planet_orbit_radius - settings.min_planet_orbit_radius)
+                + settings.min_planet_orbit_radius;
             let radian: f32 = rng.gen::<f32>() * 2.0 * PI;
             let x: f32 = orbit_radius * radian.cos();
             let y: f32 = orbit_radius * radian.sin();
@@ -336,16 +342,38 @@ fn ui_box(
                     ev_clear_traces.send(ClearTraces);
                 };
                 ui.label("Simulation settings");
-                ui.add(egui::Slider::new(&mut settings.n_objects, 10..=1000).text("Number of planets"));
+                ui.add(
+                    egui::Slider::new(&mut settings.n_objects, 10..=1000).text("Number of planets"),
+                );
                 ui.checkbox(&mut settings.collisions, "Enable colissions");
-                ui.add(egui::Slider::new(&mut settings.min_planet_size, 0.5..=3.0).text("Minimum planet radius"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_size, 3.0..=10.0).text("Maximum planet radius"));
-                ui.add(egui::Slider::new(&mut settings.min_planet_density, 0.5..=5.0).text("Minimum planet density"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_density, 0.5..=5.0).text("Maximum planet density"));
-                ui.add(egui::Slider::new(&mut settings.min_planet_orbit_radius, 100.0..=500.0).text("Minimum planet orbit radius"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_orbit_radius, 500.0..=2000.0).text("Maximum planet orbit radius"));
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_size, 0.5..=3.0)
+                        .text("Minimum planet radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_size, 3.0..=10.0)
+                        .text("Maximum planet radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_density, 0.5..=5.0)
+                        .text("Minimum planet density"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_density, 0.5..=5.0)
+                        .text("Maximum planet density"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_orbit_radius, 100.0..=500.0)
+                        .text("Minimum planet orbit radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_orbit_radius, 500.0..=2000.0)
+                        .text("Maximum planet orbit radius"),
+                );
                 ui.add(egui::Slider::new(&mut settings.sun_size, 30.0..=100.0).text("Sun radius"));
-                ui.add(egui::Slider::new(&mut settings.sun_density, 5.0..=100.0).text("Sun density"));
+                ui.add(
+                    egui::Slider::new(&mut settings.sun_density, 5.0..=100.0).text("Sun density"),
+                );
                 if ui.button("Start").clicked() {
                     ev_reset.send(Reset);
                 }
