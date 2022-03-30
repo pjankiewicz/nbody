@@ -5,7 +5,8 @@ use bevy::{
 };
 use bevy_egui::EguiContext;
 
-/// This plugin is taken from PanCamPLugin
+/// This plugin is taken from PanCamPLugin with added egui interaction
+/// Unfortunately bevy does not allow conditional plugin.
 
 #[derive(Default)]
 pub struct PanCamPlugin;
