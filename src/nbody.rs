@@ -1,5 +1,6 @@
 mod pancam;
 
+use crate::pancam::{PanCam, PanCamPlugin};
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
@@ -9,17 +10,12 @@ use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
 use wasm_bindgen::prelude::*;
-use crate::pancam::{PanCam, PanCamPlugin};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-const TIME_STEP: f32 = 1.0 / 120.0;
-const BIG_G: f32 = 3.5;
-const SOFTENING: f32 = 1.0;
 
 #[derive(Default)]
 struct Stats {
@@ -41,7 +37,9 @@ struct Settings {
     min_planet_orbit_radius: f32,
     max_planet_orbit_radius: f32,
     sun_size: f32,
-    sun_density: f32
+    sun_density: f32,
+    g: f32,
+    time_step: f32,
 }
 
 impl Default for Settings {
@@ -56,7 +54,9 @@ impl Default for Settings {
             min_planet_orbit_radius: 100.0,
             max_planet_orbit_radius: 1000.0,
             sun_size: 30.0,
-            sun_density: 5.0
+            sun_density: 5.0,
+            g: 3.5,
+            time_step: 120.0,
         }
     }
 }
@@ -159,8 +159,14 @@ fn gravity(
                         );
                     }
                 } else {
-                    let r_mag = (r_vector + Vec2::new(SOFTENING, SOFTENING)).length();
-                    let accel: f32 = -1.0 * BIG_G * planet_2.mass() / r_mag.powf(2.0);
+                    let r_mag = r_vector.length();
+                    let r_mag = if !settings.collisions && r_mag < planet_1.radius + planet_2.radius
+                    {
+                        planet_1.radius + planet_2.radius
+                    } else {
+                        r_mag
+                    };
+                    let accel: f32 = -1.0 * settings.g * planet_2.mass() / r_mag.powf(2.0);
                     let r_vector_unit = r_vector / r_mag;
                     accel_cum += accel * r_vector_unit;
                 }
@@ -171,9 +177,10 @@ fn gravity(
 
     for (entity_1, _, mut velocity_1, mut transform_1) in planet_query.iter_mut() {
         if !despawned.contains(&entity_1.id()) {
-            velocity_1.velocity += *accel_map.get(&entity_1.id()).unwrap() * TIME_STEP;
-            transform_1.translation.x += velocity_1.velocity.x * TIME_STEP;
-            transform_1.translation.y += velocity_1.velocity.y * TIME_STEP;
+            velocity_1.velocity +=
+                *accel_map.get(&entity_1.id()).unwrap() * (1.0 / settings.time_step);
+            transform_1.translation.x += velocity_1.velocity.x * (1.0 / settings.time_step);
+            transform_1.translation.y += velocity_1.velocity.y * (1.0 / settings.time_step);
         }
     }
 }
@@ -182,18 +189,27 @@ fn radius_to_area(r: f32) -> f32 {
     PI * r.powf(2.0)
 }
 
+fn radius_to_volume(r: f32) -> f32 {
+    4.0 / 3.0 * PI * r.powf(3.0)
+}
+
 fn area_to_radius(a: f32) -> f32 {
     (a / PI).sqrt()
 }
 
+fn volume_to_radius(v: f32) -> f32 {
+    ((3.0 * v) / (4.0 * PI)).powf(1.0 / 3.0)
+}
+
 fn merge_planets(planet_1: &Planet, planet_2: &Planet) -> Planet {
-    let area_1 = radius_to_area(planet_1.radius);
-    let area_2 = radius_to_area(planet_2.radius);
-    let area_sum = area_1 + area_2;
-    let new_radius = area_to_radius(area_sum);
+    let volume_1 = radius_to_volume(planet_1.radius);
+    let volume_2 = radius_to_volume(planet_2.radius);
+    let volume_sum = volume_1 + volume_2;
+    let new_radius = volume_to_radius(volume_sum);
     Planet {
         radius: new_radius,
-        density: planet_1.density * (area_1 / area_sum) + planet_2.density * (area_2 / area_sum),
+        density: planet_1.density * (volume_1 / volume_sum)
+            + planet_2.density * (volume_2 / volume_sum),
         color: planet_1.color,
         is_sun: planet_1.is_sun || planet_2.is_sun,
     }
@@ -228,7 +244,7 @@ fn setup_many_orbits(
     mut planet_query: Query<(Entity, &mut Planet)>,
     mut ev_reset: EventReader<Reset>,
     settings: Res<Settings>,
-    mut commands: Commands
+    mut commands: Commands,
 ) {
     let mut manual_reset = false;
     for _ in ev_reset.iter() {
@@ -256,19 +272,25 @@ fn setup_many_orbits(
         );
 
         for _ in 0..settings.n_objects {
-            let planet_radius = rng.gen::<f32>() * (settings.max_planet_size - settings.min_planet_size) + settings.min_planet_size;
-            let density: f32 = rng.gen::<f32>() * (settings.max_planet_density - settings.min_planet_density) + settings.min_planet_density;
+            let planet_radius = rng.gen::<f32>()
+                * (settings.max_planet_size - settings.min_planet_size)
+                + settings.min_planet_size;
+            let density: f32 = rng.gen::<f32>()
+                * (settings.max_planet_density - settings.min_planet_density)
+                + settings.min_planet_density;
             let planet = Planet {
                 radius: planet_radius,
                 density,
                 color: Color::WHITE,
                 is_sun: false,
             };
-            let orbit_radius: f32 = rng.gen::<f32>() * (settings.max_planet_orbit_radius - settings.min_planet_orbit_radius) + settings.min_planet_orbit_radius;
+            let orbit_radius: f32 = rng.gen::<f32>()
+                * (settings.max_planet_orbit_radius - settings.min_planet_orbit_radius)
+                + settings.min_planet_orbit_radius;
             let radian: f32 = rng.gen::<f32>() * 2.0 * PI;
             let x: f32 = orbit_radius * radian.cos();
             let y: f32 = orbit_radius * radian.sin();
-            let orbital_velocity = (BIG_G * sun.mass() / orbit_radius).sqrt();
+            let orbital_velocity = (settings.g * sun.mass() / orbit_radius).sqrt();
             let vx: f32 = -orbital_velocity * radian.sin();
             let vy: f32 = orbital_velocity * radian.cos();
             spawn_planet(
@@ -332,20 +354,45 @@ fn ui_box(
                 ui.label(format!("Number of objects {:}", stats.n_objects));
                 ui.checkbox(&mut stats.center_on_largest, "Center on the largest");
                 ui.checkbox(&mut stats.draw_traces, "Draw traces");
+                ui.add(egui::Slider::new(&mut settings.g, 0.5..=100.0).text("G constant"));
+                ui.add(egui::Slider::new(&mut settings.time_step, 1.0..=1000.0).text("Time step"));
+                ui.label("Higher value means slower, but more precise simulation");
+                ui.checkbox(&mut settings.collisions, "Enable colissions");
                 if ui.button("Clear traces").clicked() {
                     ev_clear_traces.send(ClearTraces);
                 };
-                ui.label("Simulation settings");
-                ui.add(egui::Slider::new(&mut settings.n_objects, 10..=1000).text("Number of planets"));
-                ui.checkbox(&mut settings.collisions, "Enable colissions");
-                ui.add(egui::Slider::new(&mut settings.min_planet_size, 0.5..=3.0).text("Minimum planet radius"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_size, 3.0..=10.0).text("Maximum planet radius"));
-                ui.add(egui::Slider::new(&mut settings.min_planet_density, 0.5..=5.0).text("Minimum planet density"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_density, 0.5..=5.0).text("Maximum planet density"));
-                ui.add(egui::Slider::new(&mut settings.min_planet_orbit_radius, 100.0..=500.0).text("Minimum planet orbit radius"));
-                ui.add(egui::Slider::new(&mut settings.max_planet_orbit_radius, 500.0..=2000.0).text("Maximum planet orbit radius"));
+                ui.label("Simulation settings (need restart)");
+                ui.add(
+                    egui::Slider::new(&mut settings.n_objects, 10..=1000).text("Number of planets"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_size, 0.5..=3.0)
+                        .text("Minimum planet radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_size, 3.0..=20.0)
+                        .text("Maximum planet radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_density, 0.5..=5.0)
+                        .text("Minimum planet density"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_density, 0.5..=50.0)
+                        .text("Maximum planet density"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.min_planet_orbit_radius, 100.0..=500.0)
+                        .text("Minimum planet orbit radius"),
+                );
+                ui.add(
+                    egui::Slider::new(&mut settings.max_planet_orbit_radius, 500.0..=2000.0)
+                        .text("Maximum planet orbit radius"),
+                );
                 ui.add(egui::Slider::new(&mut settings.sun_size, 30.0..=100.0).text("Sun radius"));
-                ui.add(egui::Slider::new(&mut settings.sun_density, 5.0..=100.0).text("Sun density"));
+                ui.add(
+                    egui::Slider::new(&mut settings.sun_density, 1.0..=100.0).text("Sun density"),
+                );
                 if ui.button("Start").clicked() {
                     ev_reset.send(Reset);
                 }
@@ -356,26 +403,53 @@ fn ui_box(
 
 #[wasm_bindgen]
 pub fn game() {
-    App::new()
-        .insert_resource(Msaa { samples: 4 })
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .insert_resource(Settings::default())
-        .add_event::<ClearTraces>()
-        .add_event::<Reset>()
-        .add_plugins(DefaultPlugins)
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(EguiPlugin)
-        .add_plugin(ShapePlugin)
-        .add_plugin(FlyCameraPlugin)
-        .add_plugin(PanCamPlugin::default())
-        .add_startup_system(setup)
-        .add_system(gravity)
-        .add_system(ui_box)
-        .add_system(move_camera)
-        .add_system(despawn_traces)
-        .add_system(setup_many_orbits)
-        .insert_resource(Stats::default())
-        .run();
+    #[cfg(target_arch = "wasm32")]
+    {
+        App::new()
+            .insert_resource(Msaa { samples: 4 })
+            .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+            .insert_resource(Settings::default())
+            .add_event::<ClearTraces>()
+            .add_event::<Reset>()
+            .add_plugins(DefaultPlugins)
+            .add_plugin(FrameTimeDiagnosticsPlugin::default())
+            .add_plugin(EguiPlugin)
+            .add_plugin(ShapePlugin)
+            .add_plugin(FlyCameraPlugin)
+            .add_plugin(PanCamPlugin::default())
+            .add_plugin(bevy_web_resizer::Plugin)
+            .add_startup_system(setup)
+            .add_system(gravity)
+            .add_system(ui_box)
+            .add_system(move_camera)
+            .add_system(despawn_traces)
+            .add_system(setup_many_orbits)
+            .insert_resource(Stats::default())
+            .run();
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        App::new()
+            .insert_resource(Msaa { samples: 4 })
+            .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+            .insert_resource(Settings::default())
+            .add_event::<ClearTraces>()
+            .add_event::<Reset>()
+            .add_plugins(DefaultPlugins)
+            .add_plugin(FrameTimeDiagnosticsPlugin::default())
+            .add_plugin(EguiPlugin)
+            .add_plugin(ShapePlugin)
+            .add_plugin(FlyCameraPlugin)
+            .add_plugin(PanCamPlugin::default())
+            .add_startup_system(setup)
+            .add_system(gravity)
+            .add_system(ui_box)
+            .add_system(move_camera)
+            .add_system(despawn_traces)
+            .add_system(setup_many_orbits)
+            .insert_resource(Stats::default())
+            .run();
+    }
 }
 
 pub fn main() {

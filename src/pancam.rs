@@ -22,7 +22,10 @@ fn camera_zoom(
     mut query: Query<(&PanCam, &mut OrthographicProjection)>,
     mut scroll_events: EventReader<MouseWheel>,
 ) {
-    if egui_ctx.ctx_mut().wants_pointer_input() || egui_ctx.ctx_mut().wants_keyboard_input() || egui_ctx.ctx_mut().is_pointer_over_area() {
+    if egui_ctx.ctx_mut().wants_pointer_input()
+        || egui_ctx.ctx_mut().wants_keyboard_input()
+        || egui_ctx.ctx_mut().is_pointer_over_area()
+    {
         return;
     }
 
@@ -51,7 +54,10 @@ fn camera_movement(
     mut query: Query<(&PanCam, &mut Transform, &OrthographicProjection)>,
     mut last_pos: Local<Option<Vec2>>,
 ) {
-    if egui_ctx.ctx_mut().wants_pointer_input() || egui_ctx.ctx_mut().wants_keyboard_input() || egui_ctx.ctx_mut().is_pointer_over_area() {
+    if egui_ctx.ctx_mut().wants_pointer_input()
+        || egui_ctx.ctx_mut().wants_keyboard_input()
+        || egui_ctx.ctx_mut().is_pointer_over_area()
+    {
         return;
     }
 
