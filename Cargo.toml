@@ -18,13 +18,13 @@ bevy_prototype_lyon = "*"
 bevy_fly_camera = "*"
 bevy_pancam = "*"
 bevy_egui = "*"
-bevy-web-resizer = "1.0.0"
-wasm-bindgen = "0.2.79"
+bevy-web-resizer = "3.0.0"
+wasm-bindgen = "0.2.83"
 wee_alloc = { version = "0.4.5", optional = true }
 
 [dependencies.bevy]
 #features = ["dynamic"]
-version = "0.6.1"
+version = "0.9.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2"
